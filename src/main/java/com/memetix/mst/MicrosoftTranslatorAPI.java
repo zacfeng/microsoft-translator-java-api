@@ -24,6 +24,8 @@ import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+
+import org.apache.commons.codec.binary.Base64;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
@@ -48,6 +50,8 @@ public abstract class MicrosoftTranslatorAPI {
     private static String referrer;
     private static String clientId;
     private static String clientSecret;
+    private static String userId;
+    private static String userSecret;
     private static String token;
     private static long tokenExpiration = 0;
     private static String contentType = "text/plain";
@@ -104,6 +108,14 @@ public abstract class MicrosoftTranslatorAPI {
     	clientSecret = pClientSecret;
     }
     
+    public static void setUserId(final String pUserId) {
+        userId = pUserId;
+    }
+    
+    public static void setUserSecret(final String pUserSecret) {
+        userSecret = pUserSecret;
+    }
+    
     /**
      * Sets the Http Referrer.
      * @param pReferrer The HTTP client referrer.
@@ -111,6 +123,7 @@ public abstract class MicrosoftTranslatorAPI {
     public static void setHttpReferrer(final String pReferrer) {
     	referrer = pReferrer;
     }
+
     /**
      * Gets the OAuth access token.
      * @param clientId The Client key.
@@ -147,6 +160,48 @@ public abstract class MicrosoftTranslatorAPI {
                }
        }
    }
+   
+    protected static String azureRetrieveString(final URL url) throws Exception {
+        try {
+            final String response = azureRetrieveResponse(url);          
+            return response;
+        } catch (Exception ex) {
+            throw new Exception("[microsoft-azure-api] Error retrieving translation : " + ex.getMessage(), ex);
+        }
+    }
+    
+    private static String azureRetrieveResponse(final URL url) throws Exception {
+
+        final HttpURLConnection uc = (HttpURLConnection) url.openConnection();
+        if(referrer!=null)
+            uc.setRequestProperty("referer", referrer);
+        uc.setRequestProperty("Content-Type",contentType + "; charset=" + ENCODING);
+        uc.setRequestProperty("Accept-Charset",ENCODING);
+
+        byte[] accountKeyBytes = Base64
+                .encodeBase64((userSecret + ":" + userSecret).getBytes());
+        String accountKeyEnc = new String(accountKeyBytes);
+        
+        uc.setRequestProperty("Authorization", "Basic "
+                + accountKeyEnc);
+
+        uc.setRequestMethod("GET");
+        uc.setDoOutput(true);
+
+        try {
+                final int responseCode = uc.getResponseCode();
+                final String result = inputStreamToString(uc.getInputStream());
+                if(responseCode!=200) {
+                    throw new Exception("Error from Microsoft Azure API: " + result);
+                }
+                return result;
+        } finally { 
+            if(uc!=null) {
+                uc.disconnect();
+            }
+        }
+    }
+    
     
     /**
      * Forms an HTTP request, sends it using GET method and returns the result of the request as a String.
@@ -167,6 +222,7 @@ public abstract class MicrosoftTranslatorAPI {
             uc.setRequestProperty("referer", referrer);
         uc.setRequestProperty("Content-Type",contentType + "; charset=" + ENCODING);
         uc.setRequestProperty("Accept-Charset",ENCODING);
+        
         if(token!=null) {
             uc.setRequestProperty("Authorization",token);
         }
@@ -181,9 +237,9 @@ public abstract class MicrosoftTranslatorAPI {
                 }
                 return result;
         } finally { 
-        	if(uc!=null) {
-    			uc.disconnect();
-    		}
+            if(uc!=null) {
+                uc.disconnect();
+            }
         }
     }
     
